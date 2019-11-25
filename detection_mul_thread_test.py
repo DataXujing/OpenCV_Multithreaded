@@ -23,7 +23,7 @@ from PIL import Image,ImageDraw,ImageFont
 
 
 # 检测概率阈值
-prob_thread = 0.85
+prob_thread = 0.80
 
 my_label = {"A":"barrett食管","B":"反流性食管炎","C":"结肠息肉","D":"结肠早癌","E":"结肠进展期癌","F":"早期胃癌",
     "G":"胃溃疡","H":"进展期胃癌","I":"慢性萎缩性胃炎","J":"食管早癌","K":"食管静脉曲张","L":"气泡","M":"反光"}
@@ -425,7 +425,7 @@ class MyThread(threading.Thread):
                 try:
                     os.remove(frame_path)
                 except Exception as e:
-                    print(str(e))
+                    print(" Warning ] " + str(e))
                 threadLock1.release()  # 释放线程锁
 
             else:
@@ -465,7 +465,17 @@ while True:
             pass
         else:
             detect_result = detect_result_temp
-            delay_i = 0
+            # 修改所有小于阈值的框判断之后detection为空的情况
+            confidence_list = []
+            for detection_ in detect_result["detetctions"]:
+                if detetction_[1] < prob_thread:
+                    confidence_list.append(0)
+                else:
+                    confidence_list.append(1)
+            if np.sum(np.array(confidence_list)) == 0:
+                pass
+            else:
+                delay_i = 0
 
     delay_i += 1 
     if not detect_result is None and delay_i <= 60: 
@@ -511,7 +521,7 @@ while True:
         cv2.destroyAllWindows()
 
 cap.release()
-cv.destroyAllWindows()
+cv2.destroyAllWindows()
 
 # 即主线程任务结束之后，进入阻塞状态，一直等待其他的子线程执行结束之后，主线程在终止
 t1.join()

@@ -13,12 +13,14 @@ import time
 from queue import Queue
 
 from ctypes import *
+import win32api,win32con
 import math
 import random
 
 import matplotlib.cm as mpcm
 import numpy as np
 from PIL import Image,ImageDraw,ImageFont
+
 
 # 检测概率阈值
 prob_thread = 0.85
@@ -392,6 +394,9 @@ cap = cv2.VideoCapture(0)   #采集卡
 # cap = cv2.VideoCapture("test.mp4")  #本地视频
 # cap.set(5,30)
 print(cap.get(5))
+# 获取屏幕的宽高
+w = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)   #获得屏幕分辨率X轴
+h = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)   #获得屏幕分辨率Y轴
 
 detection_queue = Queue(1)
 result_queue = Queue()
@@ -495,9 +500,9 @@ while True:
             cv2.rectangle(frame, (p1[0], p1[1] - thickness*10 - baseline), (p1[0] + 2*(text_size[0]-20), p1[1]), color, -1)
             frame = change_cv2_draw(frame,pstring,(p1[0],p1[1]-7*baseline),20,(255,255,255))
     
-    cv2.putText(frame, "Gaussian YOLO V3 | Frame:{}|{}".format(i,delay_i), (40,40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 2, line_type)
+    cv2.putText(frame, "Gaussian YOLO V3 | Frame:{}|{}".format(i,delay_i), (40,40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, line_type)
         
-    frame = cv2.resize(frame,(int(1920/1.4),int(1080/1.4)))
+    frame = cv2.resize(frame,(min(int(1920/(1080/(h-100))),int(w)),min(1080,int(h-100))))
     cv2.imshow('Gaussian_YOLO_V3', frame)
 
     k = cv2.waitKey(1)& 0xFF

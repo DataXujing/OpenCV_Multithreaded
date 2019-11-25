@@ -20,6 +20,9 @@ import matplotlib.cm as mpcm
 import numpy as np
 from PIL import Image,ImageDraw,ImageFont
 
+# 检测概率阈值
+prob_thread = 0.85
+
 my_label = {"A":"barrett食管","B":"反流性食管炎","C":"结肠息肉","D":"结肠早癌","E":"结肠进展期癌","F":"早期胃癌",
     "G":"胃溃疡","H":"进展期胃癌","I":"慢性萎缩性胃炎","J":"食管早癌","K":"食管静脉曲张","L":"气泡","M":"反光"}
 
@@ -319,6 +322,12 @@ netMain = None
 metaMain = None
 altNames = None
 
+scale = 0.4
+text_thickness = 1
+line_type = 8
+thickness=2
+
+
 def performDetect(frame_id=0, imagePath="temp.jpg", thresh=0.25, configPath="./data/Gaussian_yolov3_myData.cfg", weightPath="./data/Gaussian_yolov3_myData.weights", metaPath="./data/myData.data", showImage=True, makeImageOnly=False, initOnly=False):
 
     global metaMain, netMain, altNames #pylint: disable=W0603
@@ -365,11 +374,6 @@ def performDetect(frame_id=0, imagePath="temp.jpg", thresh=0.25, configPath="./d
 
     if showImage:
         try:
-            scale = 0.4
-            text_thickness = 1
-            line_type = 8
-            thickness=2
-
             # image = cv2.imread(imagePath)
             print("*** "+str(len(detections))+" Results, color coded by confidence ***")
             detections = {
@@ -384,8 +388,8 @@ def performDetect(frame_id=0, imagePath="temp.jpg", thresh=0.25, configPath="./d
 #-------------加载视频源，多线程显示和识别------------------
 
 # cap=cv2.VideoCapture("http://name:key@ip:port") #ip视频
-# cap = cv2.VideoCapture(0)   #采集卡
-cap = cv2.VideoCapture("test.mp4")  #本地视频
+cap = cv2.VideoCapture(0)   #采集卡
+# cap = cv2.VideoCapture("test.mp4")  #本地视频
 # cap.set(5,30)
 print(cap.get(5))
 
@@ -407,14 +411,21 @@ class MyThread(threading.Thread):
                 frame_id = list(frame_info.keys())[0]
                 frame_path = frame_info[frame_id]
                 detect_res = performDetect(imagePath=frame_path)
-                
-                result_queue.put(detect_res)
-                os.remove(frame_path)
+    
+                if len(detect_res['detections']) != 0:
+                    result_queue.put(detect_res)
+                else:
+                    result_queue.put("NO_DETECT")
+
+                try:
+                    os.remove(frame_path)
+                except Exception as e:
+                    print(str(e))
                 threadLock1.release()  # 释放线程锁
 
             else:
                 threadLock1.release()
-                print("队列为空")
+                print("[ INFO ] detection_queue队列为空")
 
     def get_result(self):
         return result_queue
@@ -433,19 +444,23 @@ while True:
     i += 1
 
     if i == 1:
-        print("写入队列")
+        print("[ INFO ] 写入detection_queue队列")
         save_path = "./temp_"+str(i)+".jpg"
         cv2.imwrite(save_path,frame)
         detection_queue.put({i:save_path})
     if detection_queue.empty() and not result_queue.empty():
-        print("写入队列")
+        print("[ INFO ] 写入detection_queue队列")
         save_path = "./temp_"+str(i)+".jpg"
         cv2.imwrite(save_path,frame)
         detection_queue.put({i:save_path})
     if not result_queue.empty():
-        print("result队列")
-        delay_i = 0
-        detect_result = result_queue.get(1)
+        print("[ INFO ] result_queue队列非空")
+        detect_result_temp = result_queue.get(1)
+        if detect_result_temp == "NO_DETECT":
+            pass
+        else:
+            detect_result = detect_result_temp
+            delay_i = 0
 
     delay_i += 1 
     if not detect_result is None and delay_i <= 60: 
@@ -456,6 +471,8 @@ while True:
         for detection in detections:
             label = my_label[detection[0]]
             confidence = detection[1]
+            if confidence < prob_thread:
+                continue
             pstring = label+": "+str(np.rint(100 * confidence))+"%"
             bounds = detection[2]
             shape = frame.shape
@@ -477,9 +494,10 @@ while True:
             text_size, baseline = cv2.getTextSize(pstring, cv2.FONT_HERSHEY_SIMPLEX, scale, text_thickness)
             cv2.rectangle(frame, (p1[0], p1[1] - thickness*10 - baseline), (p1[0] + 2*(text_size[0]-20), p1[1]), color, -1)
             frame = change_cv2_draw(frame,pstring,(p1[0],p1[1]-7*baseline),20,(255,255,255))
-            cv2.putText(frame, "Gaussion YOLO V3 | DataXujing | Frame:{}".format(frame_id_), (40,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, line_type)
+    
+    cv2.putText(frame, "Gaussian YOLO V3 | Frame:{}|{}".format(i,delay_i), (40,40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 2, line_type)
         
-    frame = cv2.resize(frame,(int(1920/2),int(1080/2)))
+    frame = cv2.resize(frame,(int(1920/1.4),int(1080/1.4)))
     cv2.imshow('Gaussian_YOLO_V3', frame)
 
     k = cv2.waitKey(1)& 0xFF

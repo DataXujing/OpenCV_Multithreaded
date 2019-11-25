@@ -1,0 +1,1 @@
+python detection_mul_thread_test.py
